@@ -32,7 +32,7 @@ local PS = IS_WINDOWS and "\\" or "/"
 local PATH_SEPARATOR = IS_WINDOWS and ";" or ":"
 
 local getHomePath = function()
-  local path = os.getenv("ZANA_HOME") or vim.fn.stdpath("config") .. PS .. ".." .. PS .. "zana"
+  local path = os.getenv("NVPM_HOME") or vim.fn.stdpath("config") .. PS .. ".." .. PS .. "nvpm"
   return normalize_path(path)
 end
 
