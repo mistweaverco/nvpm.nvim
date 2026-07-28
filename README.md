@@ -1,38 +1,196 @@
-<div align="center">
-
-![NVPM Logo](assets/logo.svg)
-
 # nvpm.nvim
 
-[![Made with love](assets/badge-made-with-love.svg)](https://github.com/mistweaverco/nvpm.nvim/graphs/contributors)
-[![GitHub release (latest by date)](https://img.shields.io/github/v/release/mistweaverco/nvpm.nvim?style=for-the-badge)](https://github.com/mistweaverco/nvpm.nvim/releases/latest)
-[![Discord](assets/badge-discord.svg)](https://nvpm.dev)
+A lazy.nvim-compatible Neovim plugin loader for packages installed with [NVPM](https://nvpm.dev).
 
-[Requirements](#requirements) • [Install](#install) • [Documentation](https://nvpm.dev/neovim)
-
-<p></p>
-
-A thin layer to use [packages](https://github.com/mistweaverco/nvpm-registry)
-installed via [NVPM](https://github.com/mistweaverco/nvpm-client) in Neovim.
-
-You only need this, if you don't want to have your `PATH` modified by sourcing `nvpm env`.
-
-<p></p>
-
-</div>
+NVPM handles **install, update, and lock** (`nvpm-lock.json`).
+nvpm.nvim handles **runtime loading** from your lazy-style plugin specs.
 
 ## Requirements
 
-- Neovim 0.10.0+
+- Neovim >= 0.10.0
+- [nvpm](https://github.com/mistweaverco/nvpm-client) CLI
 
-## Install
+## Install nvpm.nvim itself
 
-Via [lazy.nvim](https://github.com/folke/lazy.nvim):
-
-### Configuration
-
-```lua
-{ 'mistweaverco/nvpm.nvim', opts = {} },
+```bash
+nvpm add --plugin neovim github:mistweaverco/nvpm.nvim
 ```
 
-> `opts` needs to be an empty table.
+If you installed without `--plugin neovim`,
+the package may live under `packages/` instead of `plugins/`;
+nvpm.nvim checks both locations.
+
+## Setup
+
+nvpm.nvim is installed under `~/.local/share/nvpm/plugins/`,
+which is **not** on Neovim's runtime path by default.
+
+Bootstrap it in **`init.lua`** before any `require("nvpm")`.
+
+> [!CAUTION]
+> do **NOT** put this in `lua/plugins/init.lua`
+> (that file is loaded *by* nvpm).
+
+```lua
+-- init.lua
+local function nvpm_bootstrapper()
+  local data = vim.env.NVPM_HOME
+  if not data or data == "" then
+    data = vim.fs.join(vim.env.HOME, ".local", "share", "nvpm")
+  end
+  local roots = {
+    vim.fs.join(data, "plugins", "github", "mistweaverco_nvpm.nvim"),
+    vim.fs.join(data, "packages", "github", "mistweaverco_nvpm.nvim"),
+  }
+  local bootstrap
+  for _, root in ipairs(roots) do
+    local path = vim.fs.join(root, "lua", "nvpm", "bootstrap.lua")
+    bootstrap = loadfile(path)
+    if bootstrap then
+      break
+    end
+  end
+  if not bootstrap then
+    error("nvpm.nvim is not installed; run: nvpm add --plugin neovim github:mistweaverco/nvpm.nvim", 0)
+  end
+  return bootstrap()
+end
+
+nvpm_bootstrapper().setup({
+  { "folke/tokyonight.nvim", lazy = false, priority = 1000 },
+  { "folke/which-key.nvim", event = "VeryLazy" },
+  require("my-plugins.config.kulala-nvim"),
+})
+```
+
+Install plugins with the CLI first:
+
+```bash
+nvpm add github:folke/tokyonight.nvim
+nvpm add github:folke/which-key.nvim
+nvpm add github:mistweaverco/kulala.nvim
+```
+
+## Paths
+
+nvpm.nvim resolves paths the same way as [nvpm-client](https://github.com/mistweaverco/nvpm-client).
+
+### Environment overrides
+
+
+| Variable | Effect |
+|----------|--------|
+| `NVPM_HOME` | Override **config** and **data** roots (lock file, plugins, packages, bin) |
+| `NVPM_CACHE` | Override cache root (registry cache, etc.) |
+| `XDG_CONFIG_HOME` | Linux/BSD user config base (default `~/.config`) |
+
+
+### Default locations
+
+
+| What | Linux | macOS | Windows |
+|------|-------|-------|---------|
+| Config + lock (`nvpm-lock.json`) | `~/.config/nvpm/` | `~/Library/Application Support/nvpm/` | `%APPDATA%\nvpm\` |
+| Plugin installs | `~/.local/share/nvpm/plugins/` | `~/Library/Application Support/nvpm/plugins/` | `%APPDATA%\nvpm\plugins\` |
+| Tool packages | `~/.local/share/nvpm/packages/` | `~/Library/Application Support/nvpm/packages/` | `%APPDATA%\nvpm\packages\` |
+| CLI binaries | `~/.local/share/nvpm/bin/` | `~/Library/Application Support/nvpm/bin/` | `%APPDATA%\nvpm\bin\` |
+| Cache | `~/.cache/nvpm/` | `~/Library/Caches/nvpm/` | `%LOCALAPPDATA%\nvpm\cache\` |
+
+
+These are separate from Neovim's config dir (`~/.config/nvim/` on Linux).
+
+When `NVPM_HOME` is set, both config and data use that single directory (matching the CLI).
+
+## PATH for NVPM binaries
+
+`require("nvpm")` prepends the NVPM bin directory to `PATH` (same as `nvpm env`).
+
+## Supported lazy.nvim spec fields
+
+
+| Field | Supported |
+|-------|-----------|
+| `[1]`, `url`, `name`, `dir`, `dev` | yes |
+| `import`, `dependencies`, `optional`, `specs` | yes - `dependencies` use lazy.nvim format (e.g. `"saghen/blink.cmp"`) |
+| `enabled`, `cond`, `init`, `opts`, `config`, `main` | yes - `main` optional; inferred like lazy.nvim when unambiguous |
+| `lazy`, `priority`, `event`, `cmd`, `ft`, `keys` | yes - see [Lazy loading](#lazy-loading) below |
+| `module = false` | yes |
+| `branch`, `tag`, `commit`, `pin`, `submodules` | install-time only (via `nvpm add`) |
+| `build` | yes (`true`, shell string, argv table, Ex command starting with `:`, or `fun(plugin)`) - async before first load |
+| `version` | ignored when `"*"` (lazy.nvim compat); otherwise **unsupported** (warn) |
+| `checker`, `ui`, `install`, rocks/pkg UI | **unsupported** (warn; use nvpm CLI) |
+
+
+> [!TIP]
+> Always use `opts` instead of `config` when possible.
+> `config` is almost never needed.
+
+When `opts` is set without `config`,
+nvpm resolves the main module like [lazy.nvim](https://github.com/folke/lazy.nvim/blob/main/lua/lazy/core/loader.lua):
+scan `lua/` under the plugin dir,
+match normalized names, or use the sole top-level module.
+If inference fails, set `main` or use a `config()` function.
+
+### Lazy loading
+
+Same rules as [lazy.nvim](https://github.com/folke/lazy.nvim) (`defaults.lazy = false` by default):
+
+A plugin is **lazy** (not loaded at startup) when any of these is true:
+
+- `lazy = true` in the spec
+- `defaults.lazy = true` in your nvpm setup
+- it has `event`, `cmd`, `ft`, or `keys`
+- it appears **only** as a `dependencies` entry (not in your top-level spec list)
+
+Otherwise it is a **start plugin**: loaded synchronously during startup (like lazy.nvim).
+
+`dir = ...` (local dev path) does **not** disable lazy loading.
+Use `lazy = false` explicitly when a plugin must load at startup
+(e.g. session plugins like kikao.nvim).
+
+Lazy plugins are added to `'rtp'` and fully loaded on first
+`event` / `cmd` / `ft` / `keys` trigger,
+or when `require()` resolves one of their modules.
+
+### About the `build` plugin spec
+
+`build = true` tries `build.sh`, then `build.ps1` (Windows), then `make`.
+
+Strings starting with `:` are Ex commands (e.g. `:lua require("go.install").update_all_sync()`), matching lazy.nvim.
+
+Simple shell commands (e.g. `cargo build --release`) run directly via `vim.system` without a shell when possible.
+
+Build functions run on the main loop; put any `require()` needed before setup inside `build` (same as lazy.nvim). Example:
+
+```lua
+build = function()
+  pcall(require, "my.plugin.native")
+  return require("my.plugin.build").build() -- optional: task with :wait()
+end,
+```
+
+Startup builds run in the background (max 2 at a time) so Neovim stays responsive.
+Successful builds are stamped under the nvpm cache (`builds/`)
+and skipped on later starts until the plugin revision or build command changes.
+Non-lazy plugins and require-triggered loads run synchronously during startup (lazy.nvim parity).
+Plugins with a `build` step only defer `setup()` until `UIEnter` when loaded lazily after startup.
+
+You can _force_ a _rebuild_ by removing the stamp file under
+`~/.cache/nvpm/builds/` (or `$NVPM_CACHE/builds/`).
+
+Or by just removing all contents of the build cache directory
+(e.g. `rm -rf ~/.cache/nvpm/builds/*`).
+
+## Migration from lazy.nvim
+
+1. Install nvpm.nvim: `nvpm add github:mistweaverco/nvpm.nvim`
+2. Replace `require("lazy").setup(...)` in **`init.lua`** with the bootstrap snippet above.
+3. Install each plugin with `nvpm add github:owner/repo` (auto-detected for registry `Plugin` entries).
+    1. Use `nvpm add --plugin neovim github:owner/repo` for plugins not in the registry.
+4. List plugins: `nvpm ls --only-plugins`.
+
+## Tests
+
+```bash
+nvim --headless -l test/spec_test.lua
+```
