@@ -31,4 +31,17 @@ assert_eq(main.get_main(mini), "mini.surround")
 local explicit = { name = "foo", dir = root .. "/fixtures/ambiguous", spec = { main = "bar" } }
 assert_eq(main.get_main(explicit), "bar")
 
+-- Cached after first resolve
+local cached = { name = "fyler.nvim", dir = root .. "/fixtures/fyler", spec = {} }
+assert_eq(main.get_main(cached), "fyler")
+assert_eq(cached._main, "fyler")
+assert_eq(main.get_main(cached), "fyler")
+
+local tops = main.list_topmods(root .. "/fixtures/ambiguous")
+table.sort(tops)
+assert_eq(vim.inspect(tops), vim.inspect({ "bar", "foo" }))
+
+assert_eq(main.guess_main_cheap({ name = "mini.pairs", spec = {} }), "mini.pairs")
+assert_eq(main.guess_main_cheap({ name = "fyler.nvim", spec = {} }), nil)
+
 print("main_test.lua: ok")

@@ -50,12 +50,31 @@ function M.get_by_dir(dir)
 end
 
 function M.get_by_module(modname)
+  if not modname then
+    return nil
+  end
+  -- Prefer the require_hook topmod index (no recursive lua/ walks).
+  local ok, require_hook = pcall(require, "nvpm.require_hook")
+  if ok and require_hook.get then
+    local indexed = require_hook.get(modname)
+    if indexed then
+      return indexed
+    end
+  end
+  local top = modname:match("^[^%.]+")
   for _, plugin in ipairs(state.plugins) do
     if plugin.module == false then
       goto continue
     end
-    local mod = plugin.spec.main or main_mod.get_main(plugin)
-    if mod and (mod == modname or modname:match("^" .. mod:gsub("%-", "%%-") .. "%.")) then
+    -- Use cheap/cached main only; avoid forcing a full tree walk for every plugin.
+    local mod = plugin.spec and plugin.spec.main or plugin._main
+    if mod == false then
+      mod = nil
+    end
+    if not mod then
+      mod = main_mod.guess_main_cheap(plugin)
+    end
+    if mod and (mod == modname or (top and mod == top) or modname:match("^" .. mod:gsub("%-", "%%-") .. "%.")) then
       return plugin
     end
     ::continue::
@@ -158,13 +177,13 @@ end
 
 local function schedule_after_ui(fn)
   if vim.v.vim_did_enter == 1 then
-    vim.defer_fn(fn, 0)
+    vim.schedule(fn)
     return
   end
   vim.api.nvim_create_autocmd("UIEnter", {
     once = true,
     callback = function()
-      vim.defer_fn(fn, 0)
+      vim.schedule(fn)
     end,
   })
 end
@@ -185,14 +204,12 @@ local function apply_plugin(plugin, on_complete, sync)
     M.prepare_early(plugin)
     schedule_after_ui(function()
       rtp.ensure_plugin_on_rtp(plugin)
-      vim.schedule(function()
-        if M.run_config(plugin) then
-          M.prepare_scripts(plugin)
-          done()
-        else
-          plugin._loading = false
-        end
-      end)
+      if M.run_config(plugin) then
+        M.prepare_scripts(plugin)
+        done()
+      else
+        plugin._loading = false
+      end
     end)
     return
   end

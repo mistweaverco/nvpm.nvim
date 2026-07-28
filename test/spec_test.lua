@@ -16,7 +16,10 @@ local function assert_eq(a, b, msg)
 end
 
 assert_eq(spec.normalize_source_id({ "folke/tokyonight.nvim" }), "github:folke/tokyonight.nvim")
-assert_eq(spec.normalize_source_id({ url = "https://github.com/folke/which-key.nvim.git" }), "github:folke/which-key.nvim")
+assert_eq(
+  spec.normalize_source_id({ url = "https://github.com/folke/which-key.nvim.git" }),
+  "github:folke/which-key.nvim"
+)
 assert_eq(util.sanitize_repo_path("folke/tokyonight.nvim"), "folke_tokyonight.nvim")
 
 local plugins_path = util.get_plugins_path()
@@ -25,12 +28,12 @@ assert_eq(
   plugins_path .. paths.PS .. "github" .. paths.PS .. "folke_tokyonight.nvim"
 )
 
-assert(spec.is_lazy({ event = "BufRead" }, { defaults = { lazy = false } }))
-assert(not spec.is_lazy({}, { defaults = { lazy = false } }))
-assert(spec.is_lazy({ dir = "/tmp/foo" }, { defaults = { lazy = false } }, false))
-assert(spec.is_lazy({ dir = "/tmp/foo", ft = "lua" }, { defaults = { lazy = false } }, false))
-assert(spec.is_lazy({ dir = "/tmp/foo" }, { defaults = { lazy = false } }, true))
-assert(spec.is_lazy({}, { defaults = { lazy = true } }, false))
+assert(spec.is_lazy({ event = "BufRead" }, { lazy = false }))
+assert(not spec.is_lazy({}, { lazy = false }))
+assert(not spec.is_lazy({ dir = "/tmp/foo" }, { lazy = false }, false))
+assert(spec.is_lazy({ dir = "/tmp/foo", ft = "lua" }, { lazy = false }, false))
+assert(spec.is_lazy({ dir = "/tmp/foo" }, { lazy = false }, true))
+assert(spec.is_lazy({}, { lazy = true }, false))
 
 if not paths.IS_WINDOWS and not paths.IS_DARWIN then
   assert(paths.get_user_config_dir():match("/%.config$"))

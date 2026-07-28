@@ -5,6 +5,7 @@ local cmd_h = require("nvpm.handlers.cmd")
 local ft_h = require("nvpm.handlers.ft")
 local keys_h = require("nvpm.handlers.keys")
 local require_hook = require("nvpm.require_hook")
+local profile = require("nvpm.profile")
 
 local M = {}
 
@@ -35,7 +36,9 @@ local function load_startup_plugins(start_plugins, on_done)
 
   for _, plugin in ipairs(start_plugins) do
     if not plugin._loaded then
+      profile.track({ plugin = plugin.name, start = "start" })
       plugin_mod.load_plugin(plugin, { sync = true })
+      profile.track()
     end
   end
 
@@ -45,7 +48,10 @@ local function load_startup_plugins(start_plugins, on_done)
 end
 
 function M.startup(cfg, plugins)
+  profile.track({ start = "startup" })
+
   vim.go.loadplugins = false
+  rtp.setup(cfg)
   rtp.reset_rtp(cfg)
   plugin_mod.set_plugins(plugins)
 
@@ -58,26 +64,42 @@ function M.startup(cfg, plugins)
   end, plugins)
 
   -- lazy.nvim runs init() for every plugin before loading start plugins.
+  profile.track({ start = "init" })
   for _, plugin in ipairs(plugins) do
     plugin_mod.run_init(plugin)
   end
+  profile.track()
 
   -- Only start plugins go on rtp at startup; lazy plugins are added on first load.
+  profile.track({ start = "rtp" })
   rtp.prepend_plugin_dirs(start_plugins)
+  profile.track()
 
+  profile.track({ start = "require_hook" })
   require_hook.setup(plugins)
+  profile.track()
 
+  profile.track({ start = "handlers" })
   for _, plugin in ipairs(lazy_plugins) do
     event_h.register(plugin)
     cmd_h.register(plugin)
     ft_h.register(plugin)
     keys_h.register(plugin)
   end
+  profile.track()
 
+  profile.track({ start = "start" })
   load_startup_plugins(start_plugins, function()
+    profile.track({ start = "config_plugin" })
     rtp.source_config_patterns(STARTUP_PATTERNS)
+    profile.track()
+    profile.track({ start = "after" })
     rtp.source_after_plugins(plugins)
+    profile.track()
   end)
+  profile.track()
+
+  profile.track()
 end
 
 return M

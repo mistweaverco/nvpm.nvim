@@ -102,9 +102,24 @@ function M.sanitize_repo_path(repo)
   return (repo or ""):gsub("/", "_")
 end
 
+local dir_cache = {}
+
+--- Clear session caches (tests / re-setup).
+function M.clear_caches()
+  dir_cache = {}
+end
+
 function M.plugin_dir_from_lock(source_id)
+  if not source_id then
+    return nil
+  end
+  local cached = dir_cache[source_id]
+  if cached ~= nil then
+    return cached ~= false and cached or nil
+  end
   local provider, repo = M.split_provider_repo(source_id)
   if not provider or not repo then
+    dir_cache[source_id] = false
     return nil
   end
   local data = M.get_data_path()
@@ -115,9 +130,11 @@ function M.plugin_dir_from_lock(source_id)
   }
   for _, dir in ipairs(candidates) do
     if M.is_dir(dir) then
+      dir_cache[source_id] = dir
       return dir
     end
   end
+  dir_cache[source_id] = candidates[1]
   return candidates[1]
 end
 

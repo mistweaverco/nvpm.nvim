@@ -6,6 +6,8 @@ local M = {}
 local MAX_CONCURRENT = 2
 local active_builds = 0
 local build_queue = {}
+---@type table<string, string>
+local revision_cache = {}
 
 local function shell_prefix()
   if util.IS_WINDOWS then
@@ -59,22 +61,44 @@ local function build_signature(plugin)
   return tostring(build)
 end
 
-local function plugin_revision(dir)
-  if not dir or dir == "" then
-    return "unknown"
+--- Prefer lockfile commit, then session-cached git rev-parse / mtime.
+---@param plugin table
+---@return string
+local function plugin_revision(plugin)
+  if plugin._revision then
+    return plugin._revision
   end
+  if plugin.lock_commit and plugin.lock_commit ~= "" then
+    plugin._revision = plugin.lock_commit
+    return plugin._revision
+  end
+  local dir = plugin.dir
+  if not dir or dir == "" then
+    plugin._revision = "unknown"
+    return plugin._revision
+  end
+  local cached = revision_cache[dir]
+  if cached then
+    plugin._revision = cached
+    return cached
+  end
+  local rev = "unknown"
   local git = dir .. util.PS .. ".git"
   if util.is_dir(git) or util.is_file(git) then
     local out = vim.fn.system({ "git", "-C", dir, "rev-parse", "HEAD" })
     if vim.v.shell_error == 0 then
-      return (out:gsub("%s+$", ""))
+      rev = (out:gsub("%s+$", ""))
     end
   end
-  local stat = (vim.uv or vim.loop).fs_stat(dir)
-  if stat and stat.mtime then
-    return tostring(stat.mtime.sec or stat.mtime)
+  if rev == "unknown" then
+    local stat = (vim.uv or vim.loop).fs_stat(dir)
+    if stat and stat.mtime then
+      rev = tostring(stat.mtime.sec or stat.mtime)
+    end
   end
-  return "unknown"
+  revision_cache[dir] = rev
+  plugin._revision = rev
+  return rev
 end
 
 local function stamp_key(plugin)
@@ -87,7 +111,7 @@ local function stamp_path(plugin)
 end
 
 local function expected_stamp(plugin)
-  return vim.fn.sha256(build_signature(plugin) .. "@" .. plugin_revision(plugin.dir))
+  return vim.fn.sha256(build_signature(plugin) .. "@" .. plugin_revision(plugin))
 end
 
 local function read_stamp(plugin)
@@ -108,12 +132,13 @@ local function write_stamp(plugin)
   vim.fn.writefile({ expected_stamp(plugin) }, path)
 end
 
+--- Avoid git/hash work when no stamp exists yet (not current).
 local function is_build_current(plugin)
   local current = read_stamp(plugin)
-  if current == nil or current ~= expected_stamp(plugin) then
+  if current == nil then
     return false
   end
-  return true
+  return current == expected_stamp(plugin)
 end
 
 local function flush_waiters(plugin, ok, sync)
@@ -243,9 +268,7 @@ end
 local function announce_build(plugin)
   vim.schedule(function()
     notify_building(plugin)
-    vim.defer_fn(function()
-      vim.cmd("redraw")
-    end, 0)
+    vim.cmd("redraw")
   end)
 end
 
@@ -406,9 +429,7 @@ end
 
 local function execute_build(plugin)
   ensure_build_context(plugin)
-  vim.defer_fn(function()
-    execute_build_impl(plugin)
-  end, 0)
+  execute_build_impl(plugin)
 end
 
 function M._pump_queue()
@@ -418,6 +439,7 @@ function M._pump_queue()
       plugin._queued = false
       active_builds = active_builds + 1
       plugin._building = true
+      -- Already on the main loop via schedule; avoid an extra defer_fn tick.
       execute_build(plugin)
     end
   end)

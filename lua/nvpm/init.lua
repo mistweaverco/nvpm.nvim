@@ -4,6 +4,7 @@ local lock = require("nvpm.lock")
 local spec = require("nvpm.spec")
 local load_mod = require("nvpm.load")
 local plugin_mod = require("nvpm.plugin")
+local profile = require("nvpm.profile")
 
 local M = {}
 
@@ -30,6 +31,9 @@ local function warn_unsupported_opts(opts)
 end
 
 function M.setup(opts)
+  profile.reset()
+  profile.track({ start = "setup" })
+
   bootstrap_path()
 
   if type(opts) == "string" then
@@ -45,9 +49,17 @@ function M.setup(opts)
     warn_unsupported_opts(opts)
   end
 
+  profile.track({ start = "lock" })
   local lock_index = lock.load()
+  profile.track()
+
+  profile.track({ start = "flatten" })
   local flat = spec.flatten_specs(specs, cfg)
+  profile.track()
+
+  profile.track({ start = "resolve" })
   local plugins = spec.resolve_plugins(flat, cfg, lock_index)
+  profile.track()
 
   _state.config = cfg
   _state.plugins = plugins
@@ -60,6 +72,7 @@ function M.setup(opts)
   end
 
   load_mod.startup(cfg, plugins)
+  profile.track()
 end
 
 function M.plugins()
@@ -71,6 +84,18 @@ function M.load(name)
   if plugin then
     plugin_mod.load_plugin(plugin, { sync = true })
   end
+end
+
+--- Return startup profile root and formatted report helpers.
+function M.stats()
+  return {
+    total_ms = profile.total_ms(),
+    rows = profile.rows(),
+    root = profile.root(),
+    format = function()
+      return profile.format()
+    end,
+  }
 end
 
 return M

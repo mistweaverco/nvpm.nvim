@@ -18,13 +18,23 @@ local function register_module(mod, plugin)
   end
 end
 
+--- Register cheap mappings only: name, explicit/cheap main, top-level lua/ entries.
+--- Full lua/ tree walks are deferred until get_main runs on actual load.
 local function register_plugin(plugin)
   if plugin.module == false then
     return
   end
   register_module(plugin.name, plugin)
-  local mod = main_mod.get_main(plugin)
-  register_module(mod, plugin)
+  local cheap = main_mod.guess_main_cheap(plugin)
+  if cheap then
+    plugin._main = cheap
+    register_module(cheap, plugin)
+  end
+  if plugin.dir then
+    for _, mod in ipairs(main_mod.list_topmods(plugin.dir)) do
+      register_module(mod, plugin)
+    end
+  end
 end
 
 local function load_for_require(plugin)
@@ -35,6 +45,24 @@ local function load_for_require(plugin)
     return
   end
   plugin_mod.load_plugin(plugin, { sync = true })
+end
+
+--- Lookup plugin by module name from the require index.
+---@param modname string
+---@return table|nil
+function M.get(modname)
+  if not modname then
+    return nil
+  end
+  local plugin = module_to_plugin[modname]
+  if plugin then
+    return plugin
+  end
+  local top = modname:match("^[^%.]+")
+  if top and top ~= modname then
+    return module_to_plugin[top]
+  end
+  return nil
 end
 
 --- Register all plugins so require() can resolve modules even when rtp changed after startup.
@@ -62,7 +90,7 @@ function M.setup(plugins)
   end
 
   searchers[2] = function(modname)
-    local plugin = module_to_plugin[modname] or plugin_mod.get_by_module(modname)
+    local plugin = M.get(modname) or plugin_mod.get_by_module(modname)
     if plugin then
       if vim.in_fast_event() then
         if not plugin._on_rtp then

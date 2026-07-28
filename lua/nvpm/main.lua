@@ -33,10 +33,37 @@ local function walkmods(root, fn)
   walk(root)
 end
 
---- Resolve main Lua module for config/opts (lazy.nvim Loader.get_main).
+--- List top-level lua module names (one scandir of lua/, no recursion).
+---@param dir string
+---@return string[]
+function M.list_topmods(dir)
+  local mods = {}
+  if not dir or dir == "" then
+    return mods
+  end
+  local lua_root = dir .. "/lua"
+  local handle = vim.uv.fs_scandir(lua_root)
+  if not handle then
+    return mods
+  end
+  while true do
+    local name, t = vim.uv.fs_scandir_next(handle)
+    if not name then
+      break
+    end
+    if t == "directory" then
+      mods[#mods + 1] = name
+    elseif t == "file" and name:sub(-4) == ".lua" and name ~= "init.lua" then
+      mods[#mods + 1] = name:sub(1, -5)
+    end
+  end
+  return mods
+end
+
+--- Cheap main guess without walking the tree (explicit main / mini.* / name).
 ---@param plugin table
 ---@return string|nil
-function M.get_main(plugin)
+function M.guess_main_cheap(plugin)
   if not plugin then
     return nil
   end
@@ -51,12 +78,41 @@ function M.get_main(plugin)
   if name ~= "mini.nvim" and name:match("^mini%..*$") then
     return name
   end
+  return nil
+end
+
+--- Resolve main Lua module for config/opts (lazy.nvim Loader.get_main).
+--- Result is cached on plugin._main (false means resolved to nil).
+---@param plugin table
+---@return string|nil
+function M.get_main(plugin)
+  if not plugin then
+    return nil
+  end
+  if plugin._main ~= nil then
+    return plugin._main ~= false and plugin._main or nil
+  end
+
+  local cheap = M.guess_main_cheap(plugin)
+  if cheap then
+    plugin._main = cheap
+    return cheap
+  end
+
+  local name = plugin.name
+  if not name then
+    plugin._main = false
+    return nil
+  end
+
   local dir = plugin.dir
   if not dir then
+    plugin._main = false
     return nil
   end
   local lua_root = dir .. "/lua"
   if vim.uv.fs_stat(lua_root) == nil then
+    plugin._main = false
     return nil
   end
 
@@ -75,10 +131,9 @@ function M.get_main(plugin)
     end
   end)
 
-  if exact then
-    return exact
-  end
-  return #mods == 1 and mods[1] or nil
+  local result = exact or (#mods == 1 and mods[1] or nil)
+  plugin._main = result or false
+  return result
 end
 
 ---@deprecated use get_main(plugin)

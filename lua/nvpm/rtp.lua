@@ -2,6 +2,19 @@ local util = require("nvpm.util")
 
 local M = {}
 
+---@type table<string, true>
+local disabled_plugins = {}
+
+function M.setup(cfg)
+  disabled_plugins = {}
+  local list = cfg and cfg.performance and cfg.performance.rtp and cfg.performance.rtp.disabled_plugins
+  if type(list) == "table" then
+    for _, name in ipairs(list) do
+      disabled_plugins[name] = true
+    end
+  end
+end
+
 function M.reset_rtp(cfg)
   if not cfg.performance or not cfg.performance.rtp or not cfg.performance.rtp.reset then
     return
@@ -21,23 +34,17 @@ function M.ensure_plugin_on_rtp(plugin)
   if not plugin or not plugin.dir or plugin.dir == "" then
     return false
   end
-  if not util.is_dir(plugin.dir) then
-    return false
-  end
   if plugin._on_rtp then
     return true
   end
   if vim.in_fast_event() then
     return false
   end
-  local dir = vim.fn.fnamemodify(plugin.dir, ":p"):gsub("/$", "")
-  for _, path in ipairs(vim.opt.rtp:get()) do
-    local normalized = vim.fn.fnamemodify(path, ":p"):gsub("/$", "")
-    if normalized == dir then
-      plugin._on_rtp = true
-      return true
-    end
+  if not util.is_dir(plugin.dir) then
+    return false
   end
+  -- Trust _on_rtp for membership; startup batch-prepends start plugins.
+  -- Avoid O(|rtp|) fnamemodify scans on every lazy load.
   vim.opt.rtp:prepend(plugin.dir)
   plugin._on_rtp = true
   return true
@@ -58,7 +65,10 @@ local function source_dir_glob(base, pattern)
   local files = vim.fn.globpath(base, pattern, false, true)
   table.sort(files)
   for _, f in ipairs(files) do
-    vim.cmd("source " .. vim.fn.fnameescape(f))
+    local basename = vim.fn.fnamemodify(f, ":t:r")
+    if not disabled_plugins[basename] then
+      vim.cmd("source " .. vim.fn.fnameescape(f))
+    end
   end
 end
 

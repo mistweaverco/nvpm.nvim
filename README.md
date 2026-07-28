@@ -36,15 +36,15 @@ Bootstrap it in **`init.lua`** before any `require("nvpm")`.
 local function nvpm_bootstrapper()
   local data = vim.env.NVPM_HOME
   if not data or data == "" then
-    data = vim.fs.join(vim.env.HOME, ".local", "share", "nvpm")
+    data = vim.fs.joinpath(vim.env.HOME, ".local", "share", "nvpm")
   end
   local roots = {
-    vim.fs.join(data, "plugins", "github", "mistweaverco_nvpm.nvim"),
-    vim.fs.join(data, "packages", "github", "mistweaverco_nvpm.nvim"),
+    vim.fs.joinpath(data, "plugins", "github", "mistweaverco_nvpm.nvim"),
+    vim.fs.joinpath(data, "packages", "github", "mistweaverco_nvpm.nvim"),
   }
   local bootstrap
   for _, root in ipairs(roots) do
-    local path = vim.fs.join(root, "lua", "nvpm", "bootstrap.lua")
+    local path = vim.fs.joinpath(root, "lua", "nvpm", "bootstrap.lua")
     bootstrap = loadfile(path)
     if bootstrap then
       break
@@ -169,11 +169,28 @@ build = function()
 end,
 ```
 
-Startup builds run in the background (max 2 at a time) so Neovim stays responsive.
+Non-lazy plugins and require-triggered loads run builds **synchronously** during startup (lazy.nvim parity).
+Lazy plugins loaded after startup can use the async build queue (max 2 concurrent).
 Successful builds are stamped under the nvpm cache (`builds/`)
 and skipped on later starts until the plugin revision or build command changes.
-Non-lazy plugins and require-triggered loads run synchronously during startup (lazy.nvim parity).
-Plugins with a `build` step only defer `setup()` until `UIEnter` when loaded lazily after startup.
+Plugins with a `build` step only defer `setup()` until `UIEnter` when loaded asynchronously after startup.
+
+### Startup profile
+
+After setup, inspect manager timing with:
+
+```vim
+:Nvpm profile
+```
+
+or `require("nvpm").stats()`.
+
+Fair A/B against lazy.nvim on the same config:
+
+```bash
+nvim --startuptime /tmp/nvpm.log +q
+nvim --startuptime /tmp/lazy.log +q
+```
 
 You can _force_ a _rebuild_ by removing the stamp file under
 `~/.cache/nvpm/builds/` (or `$NVPM_CACHE/builds/`).
@@ -193,4 +210,6 @@ Or by just removing all contents of the build cache directory
 
 ```bash
 nvim --headless -l test/spec_test.lua
+nvim --headless -l test/main_test.lua
+nvim --headless -l test/profile_test.lua
 ```
