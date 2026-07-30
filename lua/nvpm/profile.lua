@@ -60,7 +60,14 @@ function M.total_ms()
   if not M._start then
     return 0
   end
-  return M.ms((vim.uv or vim.loop).hrtime() - M._start)
+  local total_ns = 0
+  local rows = vim.tbl_filter(function(row)
+    return row.depth == 0
+  end, M.rows())
+  for _, row in ipairs(rows) do
+    total_ns = total_ns + row.ms * 1e6
+  end
+  return M.ms(total_ns)
 end
 
 local function label(data)

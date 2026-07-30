@@ -19,3 +19,7 @@ globals = {
   "vim.go",
   "vim.env",
 }
+
+ignore = {
+  "631", -- line too long
+}

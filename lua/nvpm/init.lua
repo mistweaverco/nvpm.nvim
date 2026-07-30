@@ -30,6 +30,8 @@ local function warn_unsupported_opts(opts)
   end
 end
 
+---Initialize `nvpm` with the given options.
+---@type function|NvpmConfig
 function M.setup(opts)
   profile.reset()
   profile.track({ start = "setup" })
@@ -47,6 +49,12 @@ function M.setup(opts)
     cfg = config_mod.merge(opts)
     specs = opts.spec or { { import = opts.import } }
     warn_unsupported_opts(opts)
+  end
+
+  if cfg.lsp and cfg.lsp.loader then
+    profile.track({ start = "lsp" })
+    require("nvpm.lsp").loader()
+    profile.track()
   end
 
   profile.track({ start = "lock" })
@@ -72,6 +80,12 @@ function M.setup(opts)
   end
 
   load_mod.startup(cfg, plugins)
+
+  if cfg.treesitter and cfg.treesitter.loader then
+    profile.track({ start = "tree-sitter" })
+    require("nvpm.treesitter").loader()
+    profile.track()
+  end
   profile.track()
 end
 

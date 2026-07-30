@@ -1,12 +1,50 @@
 local M = {}
 
+---@alias NvpmConfigDefaultsCondFn fun():boolean
+
+---@class NvpmConfigDefaults
+---@field lazy boolean
+---@field cond NvpmConfigDefaultsCondFn|nil
+
+---@class NvpmConfigDev
+---@field path string
+---@field patterns string[]
+---@field fallback boolean
+
+---@class NvpmConfigPerformanceRtp
+---@field reset boolean
+---@field paths string[]
+---@field disabled_plugins string[]
+
+---@class NvpmConfigPerformance
+---@field rtp NvpmConfigPerformanceRtp
+
+---@class NvpmConfigLsp
+---@field loader boolean Loads LSP configurations from `vim.fn.stdpath("config")/lsp/*.lua` directory on startup and activates the LSPs on `BufEnter`. Set to `false` to disable.
+
+---@class NvpmConfigTreesitter
+---@field loader boolean Loads Tree-sitter parsers from `site/parsers/*.{so,dylib,dll}` on startup. Set to `false` to disable.
+
+---@class NvpmConfigGit
+---@field url_format string
+
+---@class NvpmConfig
+---@field defaults NvpmConfigDefaults
+---@field dev NvpmConfigDev
+---@field performance NvpmConfigPerformance
+---@field lsp NvpmConfigLsp
+---@field treesitter NvpmConfigTreesitter
+---@field git NvpmConfigGit
+
+---Default configuration for `nvpm`.
+---@type NvpmConfig
 M.defaults = {
   defaults = {
     lazy = false,
     cond = nil,
   },
   dev = {
-    path = "~/projects",
+    path = "~/Projects",
     patterns = {},
     fallback = false,
   },
@@ -16,6 +54,12 @@ M.defaults = {
       paths = {},
       disabled_plugins = {},
     },
+  },
+  treesitter = {
+    loader = true,
+  },
+  lsp = {
+    loader = true,
   },
   git = {
     url_format = "https://github.com/%s.git",

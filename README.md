@@ -25,11 +25,7 @@ nvpm.nvim checks both locations.
 nvpm.nvim is installed under `~/.local/share/nvpm/plugins/`,
 which is **not** on Neovim's runtime path by default.
 
-Bootstrap it in **`init.lua`** before any `require("nvpm")`.
-
-> [!CAUTION]
-> do **NOT** put this in `lua/plugins/init.lua`
-> (that file is loaded *by* nvpm).
+Bootstrap it in **`init.lua`**:
 
 ```lua
 -- init.lua
@@ -53,7 +49,18 @@ local function nvpm_bootstrapper()
   if not bootstrap then
     error("nvpm.nvim is not installed; run: nvpm add --plugin neovim github:mistweaverco/nvpm.nvim", 0)
   end
-  return bootstrap()
+  return bootstrap({
+    ---@type NvpmConfigLsp
+    lsp = {
+      -- Loads LSP configurations from `vim.fn.stdpath("config")/lsp/*.lua` directory on startup and activates the LSPs on `BufEnter`. Set to `false` to disable.
+      loader = true,
+    },
+    ---@type NvpmConfigTreesitter
+    treesitter = {
+      -- Loads Tree-sitter parsers from `site/parsers/*.{so,dylib,dll}` on startup. Set to `false` to disable.
+      loader = true,
+    },
+  })
 end
 
 nvpm_bootstrapper().setup({
@@ -180,10 +187,9 @@ Plugins with a `build` step only defer `setup()` until `UIEnter` when loaded asy
 After setup, inspect manager timing with:
 
 ```vim
-:Nvpm profile
+:lua require("nvpm.profile").print()
 ```
 
-or `require("nvpm").stats()`.
 
 Fair A/B against lazy.nvim on the same config:
 

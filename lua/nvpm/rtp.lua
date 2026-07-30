@@ -21,7 +21,7 @@ function M.reset_rtp(cfg)
   end
   local config = vim.fn.stdpath("config")
   local runtime = vim.env.VIMRUNTIME
-  --luacheck: ignore
+  --luacheck: ignore 122
   vim.opt.rtp = runtime and runtime ~= "" and { config, runtime } or { config }
   if cfg.performance.rtp.paths then
     for _, p in ipairs(cfg.performance.rtp.paths) do
