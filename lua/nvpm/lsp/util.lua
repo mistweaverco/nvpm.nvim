@@ -23,8 +23,18 @@ M.default_config = {
   init_options = vim.empty_dict(),
   handlers = {},
   autostart = true,
-  capabilities = lsp.protocol.make_client_capabilities(),
 }
+
+-- Defer make_client_capabilities until first access (avoid cost at require time).
+setmetatable(M.default_config, {
+  __index = function(t, k)
+    if k == "capabilities" then
+      local caps = lsp.protocol.make_client_capabilities()
+      rawset(t, "capabilities", caps)
+      return caps
+    end
+  end,
+})
 
 ---Escapes wildcard characters in a path for use in glob patterns.
 ---@param path string The path to escape.

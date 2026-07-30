@@ -9,13 +9,6 @@ local profile = require("nvpm.profile")
 
 local M = {}
 
-local STARTUP_PATTERNS = {
-  "plugin/**/*.vim",
-  "plugin/**/*.lua",
-  "ftdetect/**/*.vim",
-  "ftdetect/**/*.lua",
-}
-
 local function sort_start_plugins(start_plugins)
   table.sort(start_plugins, function(a, b)
     if a.lazy ~= b.lazy then
@@ -52,8 +45,12 @@ function M.startup(cfg, plugins)
 
   vim.go.loadplugins = false
   rtp.setup(cfg)
+  rtp.reset_packpath(cfg)
   rtp.reset_rtp(cfg)
   plugin_mod.set_plugins(plugins)
+
+  -- lazy.nvim sources filetype.lua before start plugins so ftdetect works.
+  rtp.source_filetype()
 
   local start_plugins = vim.tbl_filter(function(p)
     return not p.lazy
@@ -91,7 +88,8 @@ function M.startup(cfg, plugins)
   profile.track({ start = "start" })
   load_startup_plugins(start_plugins, function()
     profile.track({ start = "config_plugin" })
-    rtp.source_config_patterns(STARTUP_PATTERNS)
+    rtp.source_config_subdir("plugin")
+    rtp.source_config_subdir("ftdetect")
     profile.track()
     profile.track({ start = "after" })
     rtp.source_after_plugins(plugins)

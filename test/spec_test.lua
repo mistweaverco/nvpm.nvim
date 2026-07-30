@@ -55,6 +55,8 @@ local plugin = {
     end,
   },
 }
+-- Ensure a clean stamp so the first start actually runs the build.
+pcall(vim.fn.delete, paths.get_cache_path() .. paths.PS .. "builds" .. paths.PS .. "test_nvpm-build-stamp")
 local done = false
 build.start(plugin, function(ok)
   assert(ok)

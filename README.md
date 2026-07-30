@@ -182,6 +182,34 @@ Successful builds are stamped under the nvpm cache (`builds/`)
 and skipped on later starts until the plugin revision or build command changes.
 Plugins with a `build` step only defer `setup()` until `UIEnter` when loaded asynchronously after startup.
 
+### Startup performance
+
+nvpm.nvim matches lazy.nvim's main startup optimizations by default:
+
+| Option | Default | Effect |
+|--------|---------|--------|
+| `performance.cache.enabled` | `true` | Enable Neovim's `vim.loader` (bytecode cache + indexed module lookup under `~/.cache/nvim/luac/`) |
+| `performance.reset_packpath` | `true` | Set `'packpath'` to `$VIMRUNTIME` only |
+| `performance.rtp.reset` | `true` | Slim `'runtimepath'` to config, site, nvpm, and `$VIMRUNTIME` |
+| `performance.rtp.paths` | `{}` | Extra paths to keep on rtp when reset is enabled |
+| `performance.rtp.disabled_plugins` | `{}` | Skip sourcing these builtin/plugin script basenames (e.g. `"gzip"`) |
+
+Cache + rtp reset run as soon as bootstrap loads (before `setup({ require(...), ... })` arguments are evaluated), so plugin spec modules also benefit from `vim.loader`.
+
+Override before bootstrap if needed:
+
+```lua
+vim.g.nvpm_performance = {
+  cache = { enabled = false },
+  reset_packpath = false,
+  rtp = { reset = false },
+}
+```
+
+Or pass `performance` into `setup()` (re-applied when provided).
+
+Bytecode lives in Neovim's cache (`stdpath("cache")/luac`), not under `$NVPM_CACHE`.
+
 ### Startup profile
 
 After setup, inspect manager timing with:
@@ -218,4 +246,5 @@ Or by just removing all contents of the build cache directory
 nvim --headless -l test/spec_test.lua
 nvim --headless -l test/main_test.lua
 nvim --headless -l test/profile_test.lua
+nvim --headless -l test/cache_test.lua
 ```

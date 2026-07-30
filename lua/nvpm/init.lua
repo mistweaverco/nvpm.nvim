@@ -1,10 +1,10 @@
 local util = require("nvpm.util")
 local config_mod = require("nvpm.config")
-local lock = require("nvpm.lock")
 local spec = require("nvpm.spec")
 local load_mod = require("nvpm.load")
 local plugin_mod = require("nvpm.plugin")
 local profile = require("nvpm.profile")
+local cache = require("nvpm.cache")
 
 local M = {}
 
@@ -51,22 +51,21 @@ function M.setup(opts)
     warn_unsupported_opts(opts)
   end
 
-  if cfg.lsp and cfg.lsp.loader then
-    profile.track({ start = "lsp" })
-    require("nvpm.lsp").loader()
+  -- Bytecode + indexed module cache (same class of optimization as lazy.nvim).
+  -- Prefer enabling via bootstrap.setup before require("nvpm"); this covers direct setup().
+  if cfg.performance and cfg.performance.cache and cfg.performance.cache.enabled ~= false then
+    profile.track({ start = "cache" })
+    cache.enable()
     profile.track()
   end
 
-  profile.track({ start = "lock" })
-  local lock_index = lock.load()
-  profile.track()
-
+  -- Resolve plugin dirs from filesystem paths; lock JSON is loaded lazily for builds.
   profile.track({ start = "flatten" })
   local flat = spec.flatten_specs(specs, cfg)
   profile.track()
 
   profile.track({ start = "resolve" })
-  local plugins = spec.resolve_plugins(flat, cfg, lock_index)
+  local plugins = spec.resolve_plugins(flat, cfg, nil)
   profile.track()
 
   _state.config = cfg
@@ -80,6 +79,14 @@ function M.setup(opts)
   end
 
   load_mod.startup(cfg, plugins)
+
+  -- Register after start plugins so require("nvpm.lsp") / treesitter runs on slim rtp
+  -- and FS discovery is deferred to first BufEnter / FileType.
+  if cfg.lsp and cfg.lsp.loader then
+    profile.track({ start = "lsp" })
+    require("nvpm.lsp").loader()
+    profile.track()
+  end
 
   if cfg.treesitter and cfg.treesitter.loader then
     profile.track({ start = "tree-sitter" })

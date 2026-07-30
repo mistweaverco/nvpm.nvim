@@ -11,12 +11,17 @@ local M = {}
 ---@field patterns string[]
 ---@field fallback boolean
 
+---@class NvpmConfigPerformanceCache
+---@field enabled boolean Enable vim.loader bytecode + indexed module cache (default true).
+
 ---@class NvpmConfigPerformanceRtp
----@field reset boolean
+---@field reset boolean Reset rtp to config + site + nvpm + VIMRUNTIME (default true).
 ---@field paths string[]
 ---@field disabled_plugins string[]
 
 ---@class NvpmConfigPerformance
+---@field cache NvpmConfigPerformanceCache
+---@field reset_packpath boolean Reset packpath to VIMRUNTIME (default true).
 ---@field rtp NvpmConfigPerformanceRtp
 
 ---@class NvpmConfigLsp
@@ -49,8 +54,12 @@ M.defaults = {
     fallback = false,
   },
   performance = {
+    cache = {
+      enabled = true,
+    },
+    reset_packpath = true,
     rtp = {
-      reset = false,
+      reset = true,
       paths = {},
       disabled_plugins = {},
     },

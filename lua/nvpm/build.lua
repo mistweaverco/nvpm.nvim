@@ -68,7 +68,10 @@ local function plugin_revision(plugin)
   if plugin._revision then
     return plugin._revision
   end
-  if plugin.lock_commit and plugin.lock_commit ~= "" then
+  if plugin.lock_commit == nil and plugin.source_id then
+    plugin.lock_commit = require("nvpm.lock").commit_for(plugin.source_id) or false
+  end
+  if plugin.lock_commit and plugin.lock_commit ~= "" and plugin.lock_commit ~= false then
     plugin._revision = plugin.lock_commit
     return plugin._revision
   end

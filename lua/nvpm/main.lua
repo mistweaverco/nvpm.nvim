@@ -8,32 +8,8 @@ function M.normname(name)
   return name:lower():gsub("^n?vim%-", ""):gsub("%.n?vim$", ""):gsub("[%.%-]lua", ""):gsub("[^a-z]+", "")
 end
 
-local function walkmods(root, fn)
-  local function walk(path, modprefix)
-    modprefix = modprefix or ""
-    local handle = vim.uv.fs_scandir(path)
-    if not handle then
-      return
-    end
-    while true do
-      local name, t = vim.uv.fs_scandir_next(handle)
-      if not name then
-        break
-      end
-      local child = path .. "/" .. name
-      if name == "init.lua" then
-        fn(modprefix:gsub("%.$", ""), child)
-      elseif t == "file" and name:sub(-4) == ".lua" then
-        fn(modprefix .. name:sub(1, -5), child)
-      elseif t == "directory" then
-        walk(child, modprefix .. name .. ".")
-      end
-    end
-  end
-  walk(root)
-end
-
 --- List top-level lua module names (one scandir of lua/, no recursion).
+--- Matches lazy.nvim / vim.loader lsmod - get_main only needs top-level entries.
 ---@param dir string
 ---@return string[]
 function M.list_topmods(dir)
@@ -60,7 +36,7 @@ function M.list_topmods(dir)
   return mods
 end
 
---- Cheap main guess without walking the tree (explicit main / mini.* / name).
+--- Cheap main guess without walking the tree (explicit main / mini.*).
 ---@param plugin table
 ---@return string|nil
 function M.guess_main_cheap(plugin)
@@ -82,6 +58,7 @@ function M.guess_main_cheap(plugin)
 end
 
 --- Resolve main Lua module for config/opts (lazy.nvim Loader.get_main).
+--- Uses top-level lua/ entries only (not a full tree walk) - same as lazy's Cache.find("*").
 --- Result is cached on plugin._main (false means resolved to nil).
 ---@param plugin table
 ---@return string|nil
@@ -110,26 +87,16 @@ function M.get_main(plugin)
     plugin._main = false
     return nil
   end
-  local lua_root = dir .. "/lua"
-  if vim.uv.fs_stat(lua_root) == nil then
-    plugin._main = false
-    return nil
-  end
 
   local normname = M.normname(name)
-  local mods = {}
   local exact = nil
-  walkmods(lua_root, function(modname)
-    if exact then
-      return
-    end
-    if modname ~= "" then
-      mods[#mods + 1] = modname
-    end
+  local mods = M.list_topmods(dir)
+  for _, modname in ipairs(mods) do
     if M.normname(modname) == normname then
       exact = modname
+      break
     end
-  end)
+  end
 
   local result = exact or (#mods == 1 and mods[1] or nil)
   plugin._main = result or false

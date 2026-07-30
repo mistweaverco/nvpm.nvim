@@ -6,16 +6,6 @@ local spec_mod = require("nvpm.spec")
 
 local M = {}
 
-local FTDETECT_PATTERNS = {
-  "ftdetect/**/*.vim",
-  "ftdetect/**/*.lua",
-}
-
-local PLUGIN_SCRIPT_PATTERNS = {
-  "plugin/**/*.vim",
-  "plugin/**/*.lua",
-}
-
 local state = {
   plugins = {},
   by_name = {},
@@ -110,7 +100,7 @@ function M.prepare_early(plugin)
   end
   plugin._early_prepared = true
   rtp.ensure_plugin_on_rtp(plugin)
-  rtp.source_plugin_dir(plugin, FTDETECT_PATTERNS)
+  rtp.source_ftdetect(plugin)
   M.run_init(plugin)
 end
 
@@ -119,7 +109,7 @@ function M.prepare_scripts(plugin)
     return
   end
   plugin._scripts_prepared = true
-  rtp.source_plugin_dir(plugin, PLUGIN_SCRIPT_PATTERNS)
+  rtp.source_plugin_subdir(plugin, "plugin")
 end
 
 function M.prepare_plugin(plugin)
@@ -144,8 +134,9 @@ function M.run_config(plugin)
   plugin._configuring = true
   local ok, err = pcall(function()
     local spec = plugin.spec
+    local opts = M.resolve_opts(plugin)
     if type(spec.config) == "function" then
-      spec.config(plugin, M.resolve_opts(plugin))
+      spec.config(plugin, opts)
       return
     end
     if spec.config or spec.opts then
@@ -161,7 +152,7 @@ function M.run_config(plugin)
         error(("require('%s') failed: %s"):format(mod_name, tostring(mod)), 0)
       end
       if type(mod) == "table" and type(mod.setup) == "function" then
-        mod.setup(M.resolve_opts(plugin))
+        mod.setup(opts)
       elseif spec.opts ~= nil then
         error(("Module '%s' has no setup() for %s; use a `config()` function instead"):format(mod_name, plugin.name), 0)
       end

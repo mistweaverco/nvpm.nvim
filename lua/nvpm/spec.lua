@@ -333,14 +333,14 @@ function M.resolve_plugins(flat_items, cfg, lock_index)
       dir = lock.try_resolve_dir(source_id, lock_index)
     end
 
-    if dir and util.is_dir(dir) then
-      local lock_entry = source_id and lock_index and lock_index[source_id] or nil
+    if dir then
       local plugin = {
         name = name,
         dir = dir,
         spec = spec,
         source_id = source_id,
-        lock_commit = lock_entry and (lock_entry.commit or lock_entry.version) or nil,
+        -- lock_commit filled lazily by build when a stamp check needs it
+        lock_commit = nil,
         lazy = M.is_lazy(spec, cfg.defaults, not item.top_level),
         priority = spec.priority or 50,
         _order = item.order,

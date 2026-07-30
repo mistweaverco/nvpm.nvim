@@ -103,13 +103,55 @@ function M.sanitize_repo_path(repo)
 end
 
 local dir_cache = {}
+---@type table<string, string>|nil provider/sanitized -> dir
+local plugins_index = nil
 
 --- Clear session caches (tests / re-setup).
 function M.clear_caches()
   dir_cache = {}
+  plugins_index = nil
 end
 
-function M.plugin_dir_from_lock(source_id)
+--- One scandir of plugins/<provider>/* → map for O(1) resolve.
+local function ensure_plugins_index()
+  if plugins_index then
+    return plugins_index
+  end
+  plugins_index = {}
+  local root = M.get_plugins_path()
+  local uv = vim.uv or vim.loop
+  local providers = uv.fs_scandir(root)
+  if not providers then
+    return plugins_index
+  end
+  while true do
+    local provider, pt = uv.fs_scandir_next(providers)
+    if not provider then
+      break
+    end
+    if pt == "directory" then
+      local pdir = root .. M.PS .. provider
+      local entries = uv.fs_scandir(pdir)
+      if entries then
+        while true do
+          local name, nt = uv.fs_scandir_next(entries)
+          if not name then
+            break
+          end
+          if nt == "directory" or nt == "link" then
+            plugins_index[provider .. "/" .. name] = pdir .. M.PS .. name
+          end
+        end
+      end
+    end
+  end
+  return plugins_index
+end
+
+--- Return install dir for source_id only if it exists (plugins/ then packages/).
+---@param source_id string
+---@return string|nil
+function M.find_plugin_dir(source_id)
   if not source_id then
     return nil
   end
@@ -122,20 +164,39 @@ function M.plugin_dir_from_lock(source_id)
     dir_cache[source_id] = false
     return nil
   end
+  local sanitized = M.sanitize_repo_path(repo)
+  local key = provider .. "/" .. sanitized
+  local indexed = ensure_plugins_index()[key]
+  if indexed then
+    dir_cache[source_id] = indexed
+    return indexed
+  end
+  -- Fallback: packages/ (tools installed without --plugin neovim)
+  local pkg = M.get_packages_path() .. M.PS .. provider .. M.PS .. sanitized
+  if M.is_dir(pkg) then
+    dir_cache[source_id] = pkg
+    return pkg
+  end
+  dir_cache[source_id] = false
+  return nil
+end
+
+function M.plugin_dir_from_lock(source_id)
+  if not source_id then
+    return nil
+  end
+  local existing = M.find_plugin_dir(source_id)
+  if existing then
+    return existing
+  end
+  -- Path for warnings / expected location even when missing.
+  local provider, repo = M.split_provider_repo(source_id)
+  if not provider or not repo then
+    return nil
+  end
   local data = M.get_data_path()
   local sanitized = M.sanitize_repo_path(repo)
-  local candidates = {
-    data .. M.PS .. "plugins" .. M.PS .. provider .. M.PS .. sanitized,
-    data .. M.PS .. "packages" .. M.PS .. provider .. M.PS .. sanitized,
-  }
-  for _, dir in ipairs(candidates) do
-    if M.is_dir(dir) then
-      dir_cache[source_id] = dir
-      return dir
-    end
-  end
-  dir_cache[source_id] = candidates[1]
-  return candidates[1]
+  return data .. M.PS .. "plugins" .. M.PS .. provider .. M.PS .. sanitized
 end
 
 return M
