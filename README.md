@@ -47,7 +47,7 @@ require('lazy').setup({
       ---@type NvpmConfigTreesitter
       treesitter = {
       -- Defaults to `true`, set to `false` to disable
-      -- Loads "custom" user configurations for LSP servers from
+      -- Loads Tree-sitter parsers and queries from
       -- `vim.fn.stdpath('data') .. "/site/parser/<ft>.{so,dylib,dll}`
       -- `vim.fn.stdpath('data') .. "/site/queries/<ft>/*.scm`
       -- If you're using another plugin to manage treesitter parsers and queries,
@@ -108,7 +108,7 @@ nvpm_bootstrapper().setup({
   ---@type NvpmConfigTreesitter
   treesitter = {
     -- Defaults to `true`, set to `false` to disable
-    -- Loads "custom" user configurations for LSP servers from
+    -- Loads Tree-sitter parsers and queries from
     -- `vim.fn.stdpath('data') .. "/site/parser/<ft>.{so,dylib,dll}`
     -- `vim.fn.stdpath('data') .. "/site/queries/<ft>/*.scm`
     -- If you're using another plugin to manage treesitter parsers and queries,
