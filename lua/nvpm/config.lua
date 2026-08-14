@@ -26,6 +26,9 @@ local M = {}
 
 ---@class NvpmConfigLsp
 ---@field loader boolean Loads LSP configurations from `vim.fn.stdpath("config")/lsp/*.lua` directory on startup and activates the LSPs on `BufEnter`. Set to `false` to disable.
+---
+---@class NvpmConfigPkg
+---@field loader boolean Loads packages as lazy.nvim drop in replacement
 
 ---@class NvpmConfigTreesitter
 ---@field loader boolean Loads Tree-sitter parsers from `site/parsers/*.{so,dylib,dll}` on startup. Set to `false` to disable.
@@ -39,6 +42,7 @@ local M = {}
 ---@field performance NvpmConfigPerformance
 ---@field lsp NvpmConfigLsp
 ---@field treesitter NvpmConfigTreesitter
+---@field pkg NvpmConfigPkg
 ---@field git NvpmConfigGit
 
 ---Default configuration for `nvpm`.
@@ -69,6 +73,9 @@ M.defaults = {
   },
   lsp = {
     loader = true,
+  },
+  pkg = {
+    loader = false,
   },
   git = {
     url_format = "https://github.com/%s.git",

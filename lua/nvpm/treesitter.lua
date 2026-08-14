@@ -16,6 +16,7 @@ M.loader = function()
       if not vim.list_contains(installed_parsers, args.match) then
         return
       end
+      -- INFO: Only start treesitter when the parser ships queries
       local lang = vim.treesitter.language.get_lang(vim.bo[args.buf].filetype)
       if lang and pcall(vim.treesitter.language.add, lang) then
         pcall(vim.treesitter.start, args.buf, lang)

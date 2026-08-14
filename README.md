@@ -25,7 +25,43 @@ the package may live under `packages/` instead of `plugins/`;
 `nvpm.nvim` is installed under `~/.local/share/nvpm/plugins/`,
 which is **not** on Neovim's runtime path by default.
 
-Bootstrap it in **`init.lua`**:
+### Load Tree-Sitter and LSP Configurations
+
+```lua
+
+require('lazy').setup({
+  {
+    "mistweaverco/nvpm.nvim",
+    lazy = false,
+    priority = 1000,
+    opts = {
+      ---@type NvpmConfigLsp
+      lsp = {
+      -- Defaults to `true`, set to `false` to disable
+      -- Loads "custom" user configurations for LSP servers from
+      -- `vim.fn.stdpath('config') .. "/lsp/<server>.lua`
+      -- If you're using `nvim-lspconfig`,
+      -- You probably want to disable this.
+        loader = true
+      },
+      ---@type NvpmConfigTreesitter
+      treesitter = {
+      -- Defaults to `true`, set to `false` to disable
+      -- Loads "custom" user configurations for LSP servers from
+      -- `vim.fn.stdpath('data') .. "/site/parser/<ft>.{so,dylib,dll}`
+      -- `vim.fn.stdpath('data') .. "/site/queries/<ft>/*.scm`
+      -- If you're using another plugin to manage treesitter parsers and queries,
+      -- You probably want to disable this.
+        loader = true
+      },
+    },
+  }
+});
+```
+
+### Manage Plugins With `nvpm.nvim`
+
+Bootstrap it in **`init.lua`** if you want it to manage your plugins:
 
 ```lua
 -- init.lua
@@ -49,21 +85,36 @@ local function nvpm_bootstrapper()
   if not bootstrap then
     error("nvpm.nvim is not installed; run: nvpm add --plugin neovim github:mistweaverco/nvpm.nvim", 0)
   end
-  return bootstrap({
-    ---@type NvpmConfigLsp
-    lsp = {
-      -- Loads LSP configurations from `vim.fn.stdpath("config")/lsp/*.lua` directory on startup and activates the LSPs on `BufEnter`. Set to `false` to disable.
-      loader = true,
-    },
-    ---@type NvpmConfigTreesitter
-    treesitter = {
-      -- Loads Tree-sitter parsers from `site/parsers/*.{so,dylib,dll}` on startup. Set to `false` to disable.
-      loader = true,
-    },
-  })
+  return bootstrap()
 end
 
 nvpm_bootstrapper().setup({
+  ---@type NvpmConfigPkg
+  pkg = {
+  -- This is `false` by default,
+  -- so it doesn't interfere with your existing package management.
+  -- Set to it to `true` to load packages managed via `nvpm` on startup.
+    loader = true,
+  },
+  ---@type NvpmConfigLsp
+  lsp = {
+    -- Defaults to `true`, set to `false` to disable
+    -- Loads "custom" user configurations for LSP servers from
+    -- `vim.fn.stdpath('config') .. "/lsp/<server>.lua`
+    -- If you're using `nvim-lspconfig`,
+    -- You probably want to disable this.
+    loader = true,
+  },
+  ---@type NvpmConfigTreesitter
+  treesitter = {
+    -- Defaults to `true`, set to `false` to disable
+    -- Loads "custom" user configurations for LSP servers from
+    -- `vim.fn.stdpath('data') .. "/site/parser/<ft>.{so,dylib,dll}`
+    -- `vim.fn.stdpath('data') .. "/site/queries/<ft>/*.scm`
+    -- If you're using another plugin to manage treesitter parsers and queries,
+    -- You probably want to disable this.
+    loader = true
+  },
   { "folke/tokyonight.nvim", lazy = false, priority = 1000 },
   { "folke/which-key.nvim", event = "VeryLazy" },
   require("my-plugins.config.kulala-nvim"),

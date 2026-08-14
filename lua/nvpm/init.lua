@@ -30,23 +30,14 @@ local function warn_unsupported_opts(opts)
   end
 end
 
----Initialize `nvpm` with the given options.
+---Initialize plugin management with the given options.
 ---@type function|NvpmConfig
-function M.setup(opts)
-  profile.reset()
-  profile.track({ start = "setup" })
-
-  bootstrap_path()
-
-  if type(opts) == "string" then
-    opts = { opts }
-  end
-  opts = opts or {}
-
+---@param cfg NvpmConfig
+---@param opts NvpmConfig|NvpmSpec[]|NvpmSpec
+local function manage_packages(cfg, opts)
   local specs = opts
-  local cfg = config_mod.defaults
+
   if opts.spec or opts.import or opts.defaults or opts.dev or opts.performance then
-    cfg = config_mod.merge(opts)
     specs = opts.spec or { { import = opts.import } }
     warn_unsupported_opts(opts)
   end
@@ -79,6 +70,26 @@ function M.setup(opts)
   end
 
   load_mod.startup(cfg, plugins)
+end
+
+---Initialize `nvpm` with the given options.
+---@type function|NvpmConfig
+function M.setup(opts)
+  profile.reset()
+  profile.track({ start = "setup" })
+
+  bootstrap_path()
+
+  if type(opts) == "string" then
+    opts = { opts }
+  end
+  opts = opts or {}
+
+  local cfg = config_mod.merge(opts)
+
+  if cfg.pkg.loader then
+    manage_packages(cfg, opts)
+  end
 
   -- Register after start plugins so require("nvpm.lsp") / treesitter runs on slim rtp
   -- and FS discovery is deferred to first BufEnter / FileType.
