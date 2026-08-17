@@ -5,6 +5,7 @@ local load_mod = require("nvpm.load")
 local plugin_mod = require("nvpm.plugin")
 local profile = require("nvpm.profile")
 local cache = require("nvpm.cache")
+local rtp = require("nvpm.rtp")
 
 local M = {}
 
@@ -13,13 +14,9 @@ local _state = {
   config = nil,
 }
 
-local function bootstrap_path()
-  local bin = util.get_bin_path()
-  local sep = util.IS_WINDOWS and ";" or ":"
-  if not vim.env.PATH:find(bin, 1, true) then
-    vim.env.PATH = bin .. sep .. vim.env.PATH
-    vim.fn.setenv("PATH", vim.env.PATH)
-  end
+local function keep_cli_first()
+  util.prepend_bin_to_path()
+  rtp.promote_managed()
 end
 
 local function warn_unsupported_opts(opts)
@@ -78,7 +75,7 @@ function M.setup(opts)
   profile.reset()
   profile.track({ start = "setup" })
 
-  bootstrap_path()
+  keep_cli_first()
 
   if type(opts) == "string" then
     opts = { opts }
@@ -89,6 +86,18 @@ function M.setup(opts)
 
   if cfg.pkg.loader then
     manage_packages(cfg, opts)
+  end
+
+  -- Re-assert after start plugins (mason et al. may prepend PATH/rtp during setup).
+  keep_cli_first()
+  if vim.v.vim_did_enter == 1 then
+    vim.schedule(keep_cli_first)
+  else
+    vim.api.nvim_create_autocmd("VimEnter", {
+      group = vim.api.nvim_create_augroup("nvpm_cli_precedence", { clear = true }),
+      once = true,
+      callback = keep_cli_first,
+    })
   end
 
   -- Register after start plugins so require("nvpm.lsp") / treesitter runs on slim rtp

@@ -48,6 +48,14 @@ function M.get_bin_path()
   return paths.get_bin_path()
 end
 
+function M.is_cli_install_dir(dir)
+  return paths.is_cli_install_dir(dir)
+end
+
+function M.prepend_bin_to_path()
+  return paths.prepend_bin_to_path()
+end
+
 function M.get_plugins_path()
   return paths.get_plugins_path()
 end

@@ -6,6 +6,12 @@ local M = {}
 ---@type table<string, true>
 local disabled_plugins = {}
 
+--- Managed plugin dirs currently on rtp (CLI-installed first after promote).
+---@type { dir: string, cli: boolean }[]
+local managed = {}
+---@type table<string, true>
+local managed_set = {}
+
 local uv = vim.uv or vim.loop
 
 local function nvpm_root()
@@ -20,12 +26,77 @@ end
 
 function M.setup(cfg)
   disabled_plugins = {}
+  managed = {}
+  managed_set = {}
   local list = cfg and cfg.performance and cfg.performance.rtp and cfg.performance.rtp.disabled_plugins
   if type(list) == "table" then
     for _, name in ipairs(list) do
       disabled_plugins[name] = true
     end
   end
+end
+
+---@param dir string
+---@param cli boolean
+---@param at_front boolean
+local function remember(dir, cli, at_front)
+  if managed_set[dir] then
+    if not at_front then
+      return
+    end
+    for i, entry in ipairs(managed) do
+      if entry.dir == dir then
+        table.remove(managed, i)
+        table.insert(managed, 1, entry)
+        return
+      end
+    end
+    return
+  end
+  managed_set[dir] = true
+  local entry = { dir = dir, cli = cli }
+  if at_front then
+    table.insert(managed, 1, entry)
+  else
+    managed[#managed + 1] = entry
+  end
+end
+
+--- Rebuild rtp so CLI-installed plugin dirs occupy the front (highest precedence).
+function M.promote_managed()
+  if #managed == 0 then
+    return
+  end
+  ---@type string[]
+  local cli = {}
+  ---@type string[]
+  local other = {}
+  ---@type table<string, true>
+  local seen = {}
+  for _, entry in ipairs(managed) do
+    if not seen[entry.dir] then
+      seen[entry.dir] = true
+      if entry.cli then
+        cli[#cli + 1] = entry.dir
+      else
+        other[#other + 1] = entry.dir
+      end
+    end
+  end
+  ---@type string[]
+  local parts = {}
+  for i = 1, #cli do
+    parts[#parts + 1] = cli[i]
+  end
+  for i = 1, #other do
+    parts[#parts + 1] = other[i]
+  end
+  for path in vim.gsplit(vim.go.rtp, ",", { plain = true }) do
+    if path ~= "" and not seen[path] then
+      parts[#parts + 1] = path
+    end
+  end
+  vim.go.rtp = table.concat(parts, ",")
 end
 
 function M.reset_packpath(cfg)
@@ -77,41 +148,31 @@ function M.ensure_plugin_on_rtp(plugin)
   if not util.is_dir(plugin.dir) then
     return false
   end
-  vim.opt.rtp:prepend(plugin.dir)
+  remember(plugin.dir, util.is_cli_install_dir(plugin.dir), true)
   plugin._on_rtp = true
+  M.promote_managed()
   -- Only reset if this path may have been indexed empty earlier.
   cache.reset(plugin.dir)
   return true
 end
 
 --- Batch-prepend start plugin dirs onto rtp (one assignment, no per-plugin cache.reset).
+--- CLI-installed dirs are promoted to the front so they always win over site/runtime copies.
 ---@param plugins table[]
 function M.prepend_plugin_dirs(plugins)
-  ---@type string[]
-  local dirs = {}
+  local any = false
   for _, plugin in ipairs(plugins) do
     local dir = plugin.dir
     if dir and dir ~= "" then
-      dirs[#dirs + 1] = dir
+      remember(dir, util.is_cli_install_dir(dir), false)
       plugin._on_rtp = true
+      any = true
     end
   end
-  if #dirs == 0 then
+  if not any then
     return
   end
-
-  -- Prefer vim.go.rtp (stable, matches Neovim's own list) over nvim_get_runtime_file.
-  ---@type string[]
-  local parts = {}
-  for i = 1, #dirs do
-    parts[#parts + 1] = dirs[i]
-  end
-  for path in vim.gsplit(vim.go.rtp, ",", { plain = true }) do
-    if path ~= "" then
-      parts[#parts + 1] = path
-    end
-  end
-  vim.go.rtp = table.concat(parts, ",")
+  M.promote_managed()
 end
 
 --- Recursively collect .lua / .vim files under dir (uv.fs_scandir, like lazy.nvim).

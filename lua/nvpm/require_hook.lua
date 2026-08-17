@@ -89,6 +89,7 @@ end
 
 --- Package loader: only handles unloaded lazy plugins (lazy.nvim model).
 --- Placed after vim.loader lua+lib loaders so normal/cached requires stay fast.
+--- CLI copies still win because their dirs sit first on rtp.
 ---@param modname string
 ---@return function|nil
 function M.loader(modname)

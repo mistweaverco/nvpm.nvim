@@ -161,7 +161,18 @@ When `NVPM_HOME` is set, both configuration, and data use that single directory 
 
 ## `PATH` For `nvpm` Binaries
 
-`require("nvpm")` prepends the `nvpm` bin directory to `PATH` (same as `nvpm env`).
+`nvpm.nvim` puts the `nvpm` bin directory **first** on `PATH`, so CLI-installed
+LSP servers, formatters, and linters always win over mason or system copies.
+
+This is stricter than `nvpm env`: if the bin directory is already on `PATH` but not
+at the front, it is moved to the front (and duplicate entries are dropped).
+The same promotion runs after plugin startup and on `VimEnter`, so later
+`PATH` prepends cannot shadow `nvpm` packages.
+
+CLI-installed Neovim plugins (`plugins/` and `packages/`) are kept at the
+front of `'runtimepath'` for the same reason. Tree-sitter parsers integrated
+with `nvpm add --integrate neovim` are loaded by explicit path from
+`stdpath("data")/site/parser`, so they win over bundled or plugin copies.
 
 ## Supported `lazy.nvim` Spec Fields
 
@@ -210,7 +221,7 @@ Lazy plugins are added to `'rtp'` and fully loaded on first
 `event` / `cmd` / `ft` / `keys` trigger,
 or when `require()` resolves one of their modules.
 
-### About The `build` Plugin Spec
+### About the `build` Plugin-Spec
 
 `build = true` tries `build.sh`, then `build.ps1` (Windows), then `make`.
 
@@ -238,7 +249,7 @@ Plugins with a `build` step only defer `setup()` until `UIEnter` when loaded asy
 ### Startup-Performance
 
 
-`nvpm.nvim` matches `lazy.nvim`'s main startup optimizations by default:
+`nvpm.nvim` matches `lazy.nvim` main startup optimizations by default:
 
 
 | Option | Default | Effect |
@@ -247,7 +258,7 @@ Plugins with a `build` step only defer `setup()` until `UIEnter` when loaded asy
 | `performance.reset_packpath` | `true` | Set `'packpath'` to `$VIMRUNTIME` only |
 | `performance.rtp.reset` | `true` | Slim `'runtimepath'` to configuration, site, `nvpm`, and `$VIMRUNTIME` |
 | `performance.rtp.paths` | `{}` | Extra paths to keep on `rtp` when reset is enabled |
-| `performance.rtp.disabled_plugins` | `{}` | Skip sourcing these builtin/plugin script `basenames` (e.g. `"gzip"`) |
+| `performance.rtp.disabled_plugins` | `{}` | Skip sourcing these builtin/plugin-script `basenames` (e.g. `"gzip"`) |
 
 
 Cache + `rtp` reset run as soon as bootstrap loads (before `setup({ require(...), ... })` arguments are evaluated),
@@ -293,7 +304,8 @@ Or by just removing all contents of the build cache directory
 
 ### Quick Migrate From `lazy-lock.json`
 
-Helper scripts under [`migration-helpers/neovim/`](migration-helpers/neovim/) install every plugin from your lazy lockfile into nvpm at the **same commits**:
+Helper scripts under [`migration-helpers/neovim/`](migration-helpers/neovim/) install every
+plugin from your lazy lockfile into `nvpm` at the **same commits**:
 
 ```bash
 # Linux / macOS / BSD
@@ -334,11 +346,14 @@ Plugins must still be present under the lazy root so remotes can be read. Unsupp
 3. Or install plugins individually: `nvpm add --plugin neovim github:owner/repo@<commit>`
 4. List plugins: `nvpm ls --only-plugins`.
 
+## Lint
+
+```bash
+task lint
+```
+
 ## Tests
 
 ```bash
-nvim --headless -l test/spec_test.lua
-nvim --headless -l test/main_test.lua
-nvim --headless -l test/profile_test.lua
-nvim --headless -l test/cache_test.lua
+task test
 ```

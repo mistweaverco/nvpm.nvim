@@ -132,6 +132,9 @@ local function early_performance(opts, me)
   else
     vim.opt.rtp:prepend(me)
   end
+
+  -- CLI binaries must win over mason/system copies as soon as bootstrap runs.
+  paths.prepend_bin_to_path()
 end
 
 local _me = M.resolve_plugin_dir(M.SELF_SOURCE_ID)

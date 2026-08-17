@@ -6,6 +6,7 @@ local ft_h = require("nvpm.handlers.ft")
 local keys_h = require("nvpm.handlers.keys")
 local require_hook = require("nvpm.require_hook")
 local profile = require("nvpm.profile")
+local util = require("nvpm.util")
 
 local M = {}
 
@@ -96,6 +97,10 @@ function M.startup(cfg, plugins)
     profile.track()
   end)
   profile.track()
+
+  -- CLI packages stay first after start-plugin configs (e.g. mason) run.
+  util.prepend_bin_to_path()
+  rtp.promote_managed()
 
   profile.track()
 end

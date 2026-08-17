@@ -129,6 +129,73 @@ function M.get_bin_path()
   return M.get_data_path() .. PS .. "bin"
 end
 
+local function path_list_sep()
+  return IS_WINDOWS and ";" or ":"
+end
+
+local function path_equal(a, b)
+  if not a or not b then
+    return false
+  end
+  a = M.normalize_path(a)
+  b = M.normalize_path(b)
+  if IS_WINDOWS then
+    return a:lower() == b:lower()
+  end
+  return a == b
+end
+
+--- True when dir is the NVPM plugins/ or packages/ root, or a descendant.
+---@param dir string|nil
+---@return boolean
+function M.is_cli_install_dir(dir)
+  if not dir or dir == "" then
+    return false
+  end
+  dir = M.normalize_path(dir)
+  local roots = { M.get_plugins_path(), M.get_packages_path() }
+  for i = 1, #roots do
+    local root = M.normalize_path(roots[i])
+    local d, r = dir, root
+    if IS_WINDOWS then
+      d = d:lower()
+      r = r:lower()
+    end
+    if d == r then
+      return true
+    end
+    local prefix = r .. PS
+    if d:sub(1, #prefix) == prefix then
+      return true
+    end
+  end
+  return false
+end
+
+--- Put the nvpm bin directory first on PATH (highest precedence).
+--- Drops any later occurrence so mason/system copies cannot shadow CLI tools.
+---@return string|nil bin
+function M.prepend_bin_to_path()
+  local bin = M.get_bin_path()
+  if not bin or bin == "" then
+    return nil
+  end
+  local sep = path_list_sep()
+  local kept = {}
+  for part in string.gmatch(vim.env.PATH or "", "[^" .. sep .. "]+") do
+    if not path_equal(part, bin) then
+      kept[#kept + 1] = part
+    end
+  end
+  local new_path = bin
+  if #kept > 0 then
+    new_path = bin .. sep .. table.concat(kept, sep)
+  end
+  vim.env.PATH = new_path
+  vim.fn.setenv("PATH", new_path)
+  return bin
+end
+
 function M.get_plugins_path()
   return M.get_data_path() .. PS .. "plugins"
 end

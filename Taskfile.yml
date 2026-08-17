@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://taskfile.dev/schema.json
+
+version: '3'
+
+tasks:
+  default:
+    desc: List all available tasks
+    cmds:
+      - task --list
+    silent: true
+  lint:
+    desc: Lint and format Lua code
+    cmds:
+      - stylua lua
+      - luacheck lua --quiet
+    silent: true
+  test:
+    desc: Run all tests
+    cmds:
+      - nvim --headless -l test/spec_test.lua
+      - nvim --headless -l test/main_test.lua
+      - nvim --headless -l test/profile_test.lua
+      - nvim --headless -l test/cache_test.lua
+      - nvim --headless -l test/path_test.lua
+    silent: true
+
